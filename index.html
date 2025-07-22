@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caixa Multipark</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    
+    <style>
+        .auth-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logout-btn, .refresh-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .logout-btn:hover, .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading inicial -->
+    <div id="app-loading" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3>🚗 Caixa Multipark</h3>
+            <p>A inicializar aplicação...</p>
+        </div>
+    </div>
+
+    <!-- Aplicação principal (oculta inicialmente) -->
+    <div id="main-app" class="hidden">
+        <!-- Cabeçalho -->
+        <header class="header">
+            <div class="container">
+                <div class="auth-header">
+                    <div class="logo">
+                        <i class="fas fa-parking fa-2x"></i>
+                        <h1>Caixa Multipark</h1>
+                    </div>
+                    <div class="user-info">
+                        <span id="user-email">utilizador@exemplo.com</span>
+                        <button class="refresh-btn" id="refresh-dashboard" title="Atualizar Dados">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="logout-btn" id="logout-btn">
+                            <i class="fas fa-sign-out-alt"></i> Sair
+                        </button>
+                    </div>
+                </div>
+                <div class="session-info">
+                    <span id="current-date"></span>
+                    <span id="last-sync">Última sincronização: --:--</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navegação -->
+        <div class="container">
+            <nav class="nav-tabs">
+                <div class="nav-tab active" data-tab="import">📁 Importação</div>
+                <div class="nav-tab" data-tab="compare">🔄 Comparação</div>
+                <div class="nav-tab" data-tab="validate">✅ Validação</div>
+                <div class="nav-tab" data-tab="dashboard">📊 Dashboard</div>
+                <div class="nav-tab" data-tab="export">📤 Exportação</div>
+            </nav>
+
+            <!-- Conteúdo Principal -->
+            <main class="main-content">
+                <!-- Seção de Importação -->
+                <section id="import-section" class="content-section active">
+                    <h2>📁 Importação de Ficheiros</h2>
+                    
+                    <div class="card mb-20">
+                        <div class="card-header">
+                            <h3>Ficheiro Odoo (Sales Orders)</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="file-upload" id="odoo-upload">
+                                <i class="fas fa-file-excel file-upload-icon"></i>
+                                <p>Arrasta o ficheiro Odoo aqui ou clica para selecionar</p>
+                                <input type="file" id="odoo-file" class="hidden" accept=".xlsx,.xls">
+                                <button class="btn btn-primary">Selecionar Ficheiro</button>
+                            </div>
+                            <div id="odoo-file-info" class="hidden">
+                                <p><i class="fas fa-check-circle" style="color: green;"></i> Ficheiro: <span id="odoo-filename"></span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-20">
+                        <div class="card-header">
+                            <h3>Ficheiro Back Office (Entregas)</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="file-upload" id="backoffice-upload">
+                                <i class="fas fa-file-excel file-upload-icon"></i>
+                                <p>Arrasta o ficheiro Back Office aqui ou clica para selecionar</p>
+                                <input type="file" id="backoffice-file" class="hidden" accept=".xlsx,.xls">
+                                <button class="btn btn-primary">Selecionar Ficheiro</button>
+                            </div>
+                            <div id="backoffice-file-info" class="hidden">
+                                <p><i class="fas fa-check-circle" style="color: green;"></i> Ficheiro: <span id="backoffice-filename"></span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-20">
+                        <button id="process-files-btn" class="btn btn-primary" disabled>
+                            <i class="fas fa-cogs"></i> Processar Ficheiros
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Seção de Dashboard -->
+                <section id="dashboard-section" class="content-section">
+                    <h2>📊 Dashboard e Estatísticas</h2>
+                    
+                    <div class="card mb-20">
+                        <div class="card-header">
+                            <h3>💰 Resumo da Caixa</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div class="stat-item">
+                                    <span class="label">Total Caixa:</span>
+                                    <span class="value" id="total-caixa">€0,00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="label">Numerário:</span>
+                                    <span class="value" id="total-numerario">€0,00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="label">Multibanco:</span>
+                                    <span class="value" id="total-multibanco">€0,00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="label">Online:</span>
+                                    <span class="value" id="total-online">€0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📈 Gráficos</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <canvas id="chart-brands"></canvas>
+                                <canvas id="chart-payments"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Outras seções serão adicionadas depois -->
+                
+            </main>
+        </div>
+    </div>
+
+    <!-- Status de conexão -->
+    <div id="connection-status" style="position: fixed; bottom: 20px; right: 20px; padding: 10px; border-radius: 5px; color: white; font-size: 12px; background-color: #4CAF50;">
+        <i class="fas fa-wifi"></i> Conectado
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script>
+        // Inicialização básica
+        document.addEventListener('DOMContentLoaded', async function() {
+            const appLoading = document.getElementById('app-loading');
+            const mainApp = document.getElementById('main-app');
+            const currentDateElement = document.getElementById('current-date');
+            
+            // Simular carregamento
+            setTimeout(() => {
+                appLoading.classList.add('hidden');
+                mainApp.classList.remove('hidden');
+                
+                // Data atual
+                const today = new Date();
+                if (currentDateElement) {
+                    currentDateElement.textContent = today.toLocaleDateString('pt-PT');
+                }
+                
+                console.log('🚗 Caixa Multipark carregado!');
+            }, 2000);
+            
+            // Navegação por abas
+            const tabs = document.querySelectorAll('.nav-tab');
+            const sections = document.querySelectorAll('.content-section');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    
+                    // Remover ativo de todas as abas
+                    tabs.forEach(t => t.classList.remove('active'));
+                    sections.forEach(s => s.classList.remove('active'));
+                    
+                    // Ativar aba e seção clicadas
+                    tab.classList.add('active');
+                    document.getElementById(`${tabId}-section`).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
